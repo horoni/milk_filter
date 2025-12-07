@@ -237,8 +237,8 @@ fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
 }
 
 fn load_save_file(app: &MilkApp, ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        if ui.button("Load").clicked() {
+    ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
+        if ui.button(RichText::new("Load").color(Color32::WHITE)).clicked() {
             let sender = app.file_ch.0.clone();
             let task = rfd::AsyncFileDialog::new().pick_file();
 
@@ -257,28 +257,25 @@ fn load_save_file(app: &MilkApp, ui: &mut egui::Ui) {
             });
         }
 
-        if ui.button("Save").clicked() {
+        if ui.button(RichText::new("Save").color(Color32::WHITE)).clicked() {
             let task = rfd::AsyncFileDialog::new()
                 .set_file_name(format!("filt.png")) // TODO: fill name with random bytes
                 .save_file();
 
-            let contents = if let Some(img) = &app.img.processed {
+            if let Some(img) = &app.img.processed {
                 let size = img.width() as usize * img.height() as usize;
                 let mut buf = Vec::with_capacity(size);
 
                 img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
                     .unwrap();
 
-                buf
-            } else { panic!("image is not processed yet")};
-
-
-            execute(async move {
-                let file = task.await;
-                if let Some(file) = file {
-                    _ = file.write(contents.as_slice()).await;
-                }
-            });
+                execute(async move {
+                    let file = task.await;
+                    if let Some(file) = file {
+                        _ = file.write(buf.as_slice()).await;
+                    }
+                });
+            }
         }
     });
 }
