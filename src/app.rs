@@ -234,6 +234,7 @@ fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
         );
         ui.label(". ");
         ui.hyperlink_to("mirror1", "https://milk.shime.ru");
+        ui.label(" and ");
         ui.hyperlink_to("mirror2", "https://horoni.github.io/milk_filter");
     });
 }
