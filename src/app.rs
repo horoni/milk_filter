@@ -232,7 +232,9 @@ fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
             "eframe",
             "https://github.com/emilk/egui/tree/master/crates/eframe",
         );
-        ui.label(".");
+        ui.label(". ");
+        ui.hyperlink_to("mirror1", "https://milk.shime.ru");
+        ui.hyperlink_to("mirror2", "https://horoni.github.io/milk_filter");
     });
 }
 
