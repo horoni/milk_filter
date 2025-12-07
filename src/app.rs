@@ -173,8 +173,10 @@ impl eframe::App for MilkApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("Milk-Filter");
-            
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                ui.heading(RichText::new("Milk-Filter").color(Color32::WHITE));
+            });
+
             load_save_file(&self, ui);
             
             ui.horizontal(|ui| {
