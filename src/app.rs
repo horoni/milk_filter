@@ -34,6 +34,7 @@ impl Default for FileDN {
 }
 
 pub struct MilkApp {
+    show_about: bool,
     show_config: bool,
     file_ch: (Sender<FileDN>, Receiver<FileDN>),
     file: FileDN,
@@ -44,6 +45,7 @@ pub struct MilkApp {
 impl Default for MilkApp {
     fn default() -> Self {
         Self {
+            show_about: false,
             show_config: false,
             file_ch: channel(),
             file: FileDN::default(),
@@ -55,11 +57,9 @@ impl Default for MilkApp {
 
 impl MilkApp {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        egui_extras::install_image_loaders(&cc.egui_ctx);
         Default::default()
     }
 }
@@ -96,6 +96,22 @@ impl eframe::App for MilkApp {
             }
         }
 
+        egui::Window::new("About")
+            .open(&mut self.show_about)
+            .vscroll(true)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                //egui::TopBottomPanel::top("about_top").show_inside(ui, |ui| {
+                //});
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.heading(RichText::new("Changelog").color(Color32::WHITE));
+                });
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("7 Dec. 2025 -> ").color(Color32::YELLOW));
+                    ui.label(RichText::new("Init").color(Color32::GREEN));
+                });
+        });
+
         egui::Window::new("Config")
             .open(&mut self.show_config)
             .default_size(egui::vec2(200.0, 200.0))
@@ -109,10 +125,6 @@ impl eframe::App for MilkApp {
                 || ui.checkbox(&mut conf.enabled, "Milk Enabled").changed()
                 || ui.checkbox(&mut conf.quant, "Quant").changed()
                 || ui.checkbox(&mut conf.block, "Blocks").changed()
-                /*|| ui.add(egui::DragValue::new(&mut conf.comp)
-                .range(0..=100)
-                .suffix(" %")
-                .prefix("compression: ")).changed() {*/
                 || ui.add(egui::Slider::new(&mut conf.comp, 0..=100)
                     .text("(Slow) Compression")
                     .suffix(" %")).lost_focus()
@@ -163,9 +175,6 @@ impl eframe::App for MilkApp {
             // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("Milk-Filter");
             
-            // Why time precision is so bad?
-            //let ins = web_time::Instant::now();
-            
             load_save_file(&self, ui);
             
             ui.horizontal(|ui| {
@@ -189,8 +198,6 @@ impl eframe::App for MilkApp {
                 });
             }
 
-            //ui.label(format!("{:?}", ins.elapsed().as_nanos()));
-
             if let Some(tex) = &self.texture {
                 puffin::profile_scope!("s_draw_img");
                 let max_size = ui.available_size() * 0.9;
@@ -200,6 +207,9 @@ impl eframe::App for MilkApp {
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 powered_by_egui_and_eframe(ui);
+                if ui.button("About").clicked() {
+                    self.show_about = true;
+                }
                 egui::warn_if_debug_build(ui);
             });
         });
@@ -212,7 +222,8 @@ impl eframe::App for MilkApp {
 fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
+        ui.hyperlink_to("milk_filter", "https://github.com/horoni/milk_filter");
+        ui.label(" powered by ");
         ui.hyperlink_to("egui", "https://github.com/emilk/egui");
         ui.label(" and ");
         ui.hyperlink_to(
