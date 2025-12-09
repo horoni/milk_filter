@@ -1,8 +1,7 @@
 use crate::filt::MilkImage;
 use egui::{Color32, RichText};
 use std::future::Future;
-use std::sync::mpsc::{channel, Sender, Receiver};
-
+use std::sync::mpsc::{Receiver, Sender, channel};
 
 struct FileDN {
     name: String,
@@ -82,13 +81,14 @@ impl eframe::App for MilkApp {
                 if let Some(img) = &self.img.processed {
                     puffin::profile_scope!("s_load_texture");
                     let color_image = egui::ColorImage::from_rgb(
-                            [img.width() as usize, img.height() as usize],
-                            img.as_raw().as_slice()
+                        [img.width() as usize, img.height() as usize],
+                        img.as_raw().as_slice(),
                     );
-                    
+
                     self.texture = Some(ctx.load_texture(
-                        "image", color_image,
-                        egui::TextureOptions::default()
+                        "image",
+                        color_image,
+                        egui::TextureOptions::default(),
                     ));
                 } else {
                     self.texture = None;
@@ -101,8 +101,6 @@ impl eframe::App for MilkApp {
             .vscroll(true)
             .collapsible(false)
             .show(ctx, |ui| {
-                //egui::TopBottomPanel::top("about_top").show_inside(ui, |ui| {
-                //});
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                     ui.heading(RichText::new("Changelog").color(Color32::WHITE));
                 });
@@ -110,7 +108,11 @@ impl eframe::App for MilkApp {
                     ui.label(RichText::new("7 Dec. 2025 -> ").color(Color32::YELLOW));
                     ui.label(RichText::new("Init").color(Color32::GREEN));
                 });
-        });
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("9 Dec. 2025 -> ").color(Color32::YELLOW));
+                    ui.label(RichText::new("Compression effect now 2 times faster! Random names for exported images. Code refactoring.").color(Color32::GREEN));
+                });
+            });
 
         egui::Window::new("Config")
             .open(&mut self.show_config)
@@ -118,39 +120,48 @@ impl eframe::App for MilkApp {
             .vscroll(true)
             .collapsible(true)
             .show(ctx, |ui| {
-            let conf = self.img.get_config();
-            
-            if ui.checkbox(&mut conf.alt, "Alternative pallete").changed()
-                || ui.checkbox(&mut conf.pointism, "Pointillism").changed()
-                || ui.checkbox(&mut conf.enabled, "Milk Enabled").changed()
-                || ui.checkbox(&mut conf.quant, "Quant").changed()
-                || ui.checkbox(&mut conf.block, "Blocks").changed()
-                || ui.add(egui::Slider::new(&mut conf.comp, 0..=100)
-                    .text("(Slow) Compression")
-                    .suffix(" %")).lost_focus()
-                || ui.add(egui::Slider::new(&mut conf.block_size, 0..=64)
-                    .text("Block size(0 = auto)")).lost_focus()
-                || ui.button("Reprocess image").clicked()
-            {
-                if self.file.valid {
-                    self.img.process();
-                    if let Some(img) = &self.img.processed {
-                        puffin::profile_scope!("s_load_texture");
-                        let color_image = egui::ColorImage::from_rgb(
+                let conf = self.img.get_config();
+
+                if ui.checkbox(&mut conf.alt, "Alternative pallete").changed()
+                    || ui.checkbox(&mut conf.pointism, "Pointillism").changed()
+                    || ui.checkbox(&mut conf.enabled, "Milk Enabled").changed()
+                    || ui.checkbox(&mut conf.quant, "Quant").changed()
+                    || ui.checkbox(&mut conf.block, "Blocks").changed()
+                    || ui
+                        .add(
+                            egui::Slider::new(&mut conf.comp, 0..=100)
+                                .text("(Slow) Compression")
+                                .suffix(" %"),
+                        )
+                        .lost_focus()
+                    || ui
+                        .add(
+                            egui::Slider::new(&mut conf.block_size, 0..=64)
+                                .text("Block size(0 = auto)"),
+                        )
+                        .lost_focus()
+                    || ui.button("Reprocess image").clicked()
+                {
+                    if self.file.valid {
+                        self.img.process();
+                        if let Some(img) = &self.img.processed {
+                            puffin::profile_scope!("s_load_texture");
+                            let color_image = egui::ColorImage::from_rgb(
                                 [img.width() as usize, img.height() as usize],
-                                img.as_raw().as_slice()
-                        );
-                        
-                        self.texture = Some(ctx.load_texture(
-                            "image", color_image,
-                            egui::TextureOptions::default()
-                        ));
+                                img.as_raw().as_slice(),
+                            );
+
+                            self.texture = Some(ctx.load_texture(
+                                "image",
+                                color_image,
+                                egui::TextureOptions::default(),
+                            ));
+                        }
                     }
                 }
-            }
 
-            //TODO: Add other config options
-        });
+                //TODO: Add other config options
+            });
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -177,8 +188,8 @@ impl eframe::App for MilkApp {
                 ui.heading(RichText::new("Milk-Filter").color(Color32::WHITE));
             });
 
-            load_save_file(&self, ui);
-            
+            load_save_file(self, ui);
+
             ui.horizontal(|ui| {
                 let mut profile = puffin::are_scopes_on();
                 ui.checkbox(&mut profile, "Show profiler window");
@@ -203,8 +214,7 @@ impl eframe::App for MilkApp {
             if let Some(tex) = &self.texture {
                 puffin::profile_scope!("s_draw_img");
                 let max_size = ui.available_size() * 0.9;
-                ui.add(egui::Image::new(tex)
-                    .max_size(max_size));
+                ui.add(egui::Image::new(tex).max_size(max_size));
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -240,47 +250,57 @@ fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
 }
 
 fn load_save_file(app: &MilkApp, ui: &mut egui::Ui) {
-    ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
-        if ui.button(RichText::new("Load").color(Color32::WHITE)).clicked() {
-            let sender = app.file_ch.0.clone();
-            let task = rfd::AsyncFileDialog::new().pick_file();
+    ui.with_layout(
+        egui::Layout::top_down_justified(egui::Align::Center),
+        |ui| {
+            if ui
+                .button(RichText::new("Load").color(Color32::WHITE))
+                .clicked()
+            {
+                let sender = app.file_ch.0.clone();
+                let task = rfd::AsyncFileDialog::new().pick_file();
 
-            let ctx = ui.ctx().clone();
-            execute(async move {
-                let file = task.await;
-                if let Some(file) = file {
-                    let data = file.read().await;
-                    let name = file.file_name();
-                    let valid = if name.ends_with(".png")
-                        || name.ends_with(".jpg")
-                        || name.ends_with(".jpeg") { true } else { false };
-                    let _ = sender.send(FileDN::new(name, data, valid));
-                    ctx.request_repaint();
-                }
-            });
-        }
-
-        if ui.button(RichText::new("Save").color(Color32::WHITE)).clicked() {
-            let task = rfd::AsyncFileDialog::new()
-                .set_file_name(format!("filt.png")) // TODO: fill name with random bytes
-                .save_file();
-
-            if let Some(img) = &app.img.processed {
-                let size = img.width() as usize * img.height() as usize;
-                let mut buf = Vec::with_capacity(size);
-
-                img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
-                    .unwrap();
-
+                let ctx = ui.ctx().clone();
                 execute(async move {
                     let file = task.await;
                     if let Some(file) = file {
-                        _ = file.write(buf.as_slice()).await;
+                        let data = file.read().await;
+                        let name = file.file_name();
+                        let valid = name.ends_with(".png")
+                            || name.ends_with(".jpg")
+                            || name.ends_with(".jpeg");
+                        let _ = sender.send(FileDN::new(name, data, valid));
+                        ctx.request_repaint();
                     }
                 });
             }
-        }
-    });
+
+            if ui
+                .button(RichText::new("Save").color(Color32::WHITE))
+                .clicked()
+            {
+                let id: u64 = rand::random();
+                let task = rfd::AsyncFileDialog::new()
+                    .set_file_name(format!("filt_{:16x}.png", id))
+                    .save_file();
+
+                if let Some(img) = &app.img.processed {
+                    let size = img.width() as usize * img.height() as usize;
+                    let mut buf = Vec::with_capacity(size);
+
+                    img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+                        .unwrap();
+
+                    execute(async move {
+                        let file = task.await;
+                        if let Some(file) = file {
+                            _ = file.write(buf.as_slice()).await;
+                        }
+                    });
+                }
+            }
+        },
+    );
 }
 
 #[cfg(target_arch = "wasm32")]

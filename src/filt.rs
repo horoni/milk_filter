@@ -1,10 +1,6 @@
 use image::Rgb;
-use rand::{Rng, SeedableRng, rngs::SmallRng};
+use rand::{Rng as _, SeedableRng as _, rngs::SmallRng};
 use rayon::prelude::*;
-
-fn probably(rng: &mut SmallRng, chance: f32) -> bool {
-    rng.random_range(0.0..1.0) < chance
-}
 
 pub struct MilkImage {
     img: Option<image::ImageBuffer<Rgb<u8>, Vec<u8>>>,
@@ -20,10 +16,10 @@ impl MilkImage {
             conf: MilkConfig::new(),
         }
     }
-    
+
     pub fn open(&mut self, data: &[u8]) {
         puffin::profile_function!();
-        
+
         let img = {
             puffin::profile_scope!("s_load_from_mem");
             match image::load_from_memory(data) {
@@ -52,27 +48,13 @@ impl MilkImage {
 
         let mut img = if self.conf.comp > 0 {
             puffin::profile_scope!("s_compress");
-/*
-            let estimated_size = img.width() as usize * img.height() as usize;
-            let mut comp_buf = Vec::with_capacity(estimated_size);
 
-            let quality = std::cmp::max(1, 100 - self.conf.comp);
-            let enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut comp_buf, quality);
-
-            if let Err(e) = img.write_with_encoder(enc) {
-                eprintln!("failed to compress image: {e}");
-                std::process::exit(1);
-            }
-
-            image::load_from_memory(&comp_buf)
-                .expect("failed to load compressed image")
-                .into_rgb8()
-*/
             let quality_factor = (100.0 - self.conf.comp as f32) / 100.0;
             let block_size = if self.conf.block_size == 0 {
                 (((self.conf.comp as f32 / 100.0) * 7.0).max(1.0) as u32).min(8)
-            } else { self.conf.block_size };
-
+            } else {
+                self.conf.block_size
+            };
 
             if self.conf.quant {
                 crate::comp::jpeg_quantization(&mut img, quality_factor.max(0.05));
@@ -85,94 +67,119 @@ impl MilkImage {
             img
         };
 
-        let (width, _) = img.dimensions();
-        let width = width as usize;
-        let raw_pixels = img.as_mut();
-
+        let width = img.width() as usize;
         let color_map = [
             [(0u8, 0u8, 0u8), (102u8, 0u8, 31u8), (137u8, 0u8, 146u8)],
             [(0u8, 0u8, 0u8), (92u8, 36u8, 60u8), (203u8, 43u8, 43u8)],
         ];
-        let colors = if self.conf.alt { color_map[1] } else { color_map[0] };
+        let colors = if self.conf.alt {
+            color_map[1]
+        } else {
+            color_map[0]
+        };
         let chance = if self.conf.pointism { 0.7 } else { 1.0 };
-        let (thr_mid1, thr_mid2) = if self.conf.alt { (90u16, 150u16) } else { (120u16, 200u16) };
+        let (thr_mid1, thr_mid2) = if self.conf.alt { (90, 150) } else { (120, 200) };
 
-        if self.conf.enabled
-        {
-        puffin::profile_scope!("s_apply_filter");
-        raw_pixels
-            .par_chunks_mut(width * 3)
-            .enumerate()
-            .for_each(|(y, row)| {
-                let seed = ((width * 3) + y) as u64 ^ 0x123456789abcdef0;
-                let mut rng = SmallRng::seed_from_u64(seed);
+        #[derive(Clone, Copy)]
+        struct Action {
+            c1: (u8, u8, u8),
+            c2: (u8, u8, u8),
+            do_rng: bool,
+        }
 
-                for pixel in row.chunks_exact_mut(3) {
-                    let r = pixel[0] as u16;
-                    let g = pixel[1] as u16;
-                    let b = pixel[2] as u16;
+        let mut lut = [Action {
+            c1: (0, 0, 0),
+            c2: (0, 0, 0),
+            do_rng: false,
+        }; 766];
 
-                    let bright = (r + g + b) / 3;
+        for sum in 0..=765 {
+            let avg = sum / 3;
 
-                    let color = if bright <= 25 {
-                        if let Some(i) = self.conf.s1 {
-                            colors[i]
-                        } else {
-                            colors[0]
-                        }
-                    } else if bright <= 70 {
-                        if let Some(i) = self.conf.s2 {
-                            colors[i]
-                        } else {
-                            if self.conf.eff == 1 {
-                                if probably(&mut rng, chance) { colors[1] } else { colors[0] }
-                            } else {
-                                if probably(&mut rng, chance) { colors[0] } else { colors[1] }
-                            }
-                        }
-                    } else if bright < thr_mid1 {
-                        if let Some(i) = self.conf.s3 {
-                            colors[i]
-                        } else {
-                            if self.conf.eff == 1 {
-                                colors[0]
-                            } else {
-                                if probably(&mut rng, chance) { colors[1] } else { colors[0] }
-                            }
-                        }
-                    } else if bright < thr_mid2  {
-                        if let Some(i) = self.conf.s4 {
-                            colors[i]
-                        } else {
-                            if self.conf.eff == 1 {
-                                if probably(&mut rng, chance) { colors[0] } else { colors[1] }
-                            } else {
-                                colors[1]
-                            }
-                        }
-                    } else if bright < 230 {
-                        if let Some(i) = self.conf.s5 {
-                            colors[i]
-                        } else {
-                            if self.conf.eff == 1 {
-                                colors[2]
-                            } else {
-                                if probably(&mut rng, chance) { colors[2] } else { colors[1] }
-                            }
-                        }
-                    } else {
-                        if let Some(i) = self.conf.s6 {
-                            colors[i]
-                        } else {
-                            colors[2]
-                        }
-                    };
-
-                    pixel[0] = color.0;
-                    pixel[1] = color.1;
-                    pixel[2] = color.2;
+            let (col_primary, col_secondary, use_chance) = if avg <= 25 {
+                let c = if let Some(i) = self.conf.s1 {
+                    colors[i]
+                } else {
+                    colors[0]
+                };
+                (c, c, false)
+            } else if avg <= 70 {
+                if let Some(i) = self.conf.s2 {
+                    (colors[i], colors[i], false)
+                } else if self.conf.eff == 1 {
+                    (colors[1], colors[0], true)
+                } else {
+                    (colors[0], colors[1], true)
                 }
-            });
+            } else if avg < thr_mid1 {
+                if let Some(i) = self.conf.s3 {
+                    (colors[i], colors[i], false)
+                } else if self.conf.eff == 1 {
+                    (colors[0], colors[0], false)
+                } else {
+                    (colors[1], colors[0], true)
+                }
+            } else if avg < thr_mid2 {
+                if let Some(i) = self.conf.s4 {
+                    (colors[i], colors[i], false)
+                } else if self.conf.eff == 1 {
+                    (colors[0], colors[1], true)
+                } else {
+                    (colors[1], colors[1], false)
+                }
+            } else if avg < 230 {
+                if let Some(i) = self.conf.s5 {
+                    (colors[i], colors[i], false)
+                } else if self.conf.eff == 1 {
+                    (colors[2], colors[2], false)
+                } else {
+                    (colors[2], colors[1], true)
+                }
+            } else {
+                let c = if let Some(i) = self.conf.s6 {
+                    colors[i]
+                } else {
+                    colors[2]
+                };
+                (c, c, false)
+            };
+
+            lut[sum as usize] = Action {
+                c1: col_primary,
+                c2: col_secondary,
+                do_rng: use_chance && chance != 1.0,
+            };
+        }
+
+        if self.conf.enabled {
+            puffin::profile_scope!("s_apply_filter");
+
+            img.as_mut()
+                .par_chunks_mut(width * 3)
+                .enumerate()
+                .for_each(|(y, row)| {
+                    let seed = ((width * 3) + y) as u64 ^ 0x123456789abcdef0;
+                    let mut rng = SmallRng::seed_from_u64(seed);
+
+                    for pixel in row.chunks_exact_mut(3) {
+                        let sum = (pixel[0] as u16 + pixel[1] as u16 + pixel[2] as u16) as usize;
+                        let action = &lut[sum];
+
+                        let color = if action.do_rng {
+                            if rng.random_range(0.0..1.0) < chance {
+                                action.c1
+                            } else {
+                                action.c2
+                            }
+                        } else {
+                            action.c1
+                        };
+
+                        pixel[0] = color.0;
+                        pixel[1] = color.1;
+                        pixel[2] = color.2;
+                    }
+                });
         }
 
         self.processed = Some(img);
