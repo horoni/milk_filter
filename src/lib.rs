@@ -3,4 +3,5 @@
 mod app;
 mod comp;
 mod filt;
+mod smix64;
 pub use app::MilkApp;

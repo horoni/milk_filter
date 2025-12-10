@@ -1,6 +1,6 @@
 [package]
 name = "milk_filter"
-version = "0.1.0"
+version = "0.1.2"
 authors = ["horoni"]
 edition = "2024"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
@@ -21,8 +21,6 @@ log = "0.4.27"
 rfd = "0.16.0"
 rayon = { version = "1.11.0", features = ["web_spin_lock"] }
 image = { version = "0.25", default-features = false, features = ["rayon", "jpeg", "png"] }
-rand = { version="0.9", default-features = false, features = ["small_rng", "thread_rng"] }
-getrandom = { version = "0.3", features = ["wasm_js"] }
 
 # profiler needs to be dev-dependencies ?
 puffin = { git = "https://github.com/horoni/puffin", branch = "main", default-features = false, features = ["web"] }

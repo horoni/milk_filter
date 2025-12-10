@@ -96,6 +96,83 @@ impl eframe::App for MilkApp {
             }
         }
 
+        self.window_about(ctx);
+        self.window_config(ctx);
+
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            // The top panel is often a good place for a menu bar:
+
+            egui::MenuBar::new().ui(ui, |ui| {
+                // NOTE: no File->Quit on web pages!
+                let is_web = cfg!(target_arch = "wasm32");
+                if !is_web {
+                    ui.menu_button("File", |ui| {
+                        if ui.button("Quit").clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+                    });
+                    ui.add_space(16.0);
+                }
+
+                egui::widgets::global_theme_preference_buttons(ui);
+            });
+        });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            // The central panel the region left after adding TopPanel's and SidePanel's
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                let str = format!(
+                    "milk_filter v{}",
+                    option_env!("CARGO_PKG_VERSION").unwrap_or("(Undefined)")
+                );
+                ui.heading(RichText::new(str).color(Color32::WHITE));
+            });
+
+            load_save_file(self, ui);
+
+            ui.horizontal(|ui| {
+                let mut profile = puffin::are_scopes_on();
+                ui.checkbox(&mut profile, "Show profiler window");
+                puffin::set_scopes_on(profile); // controls both the profile capturing, and the displaying of it
+
+                ui.checkbox(&mut self.show_config, "Show Filter Options");
+            });
+
+            ui.separator();
+
+            if !self.file.exists {
+                ui.label("Load file by using \"Load\" button!");
+            } else if !self.file.valid {
+                ui.label(RichText::new("(png | jpg | jpeg) Only supported!").color(Color32::RED));
+            } else {
+                ui.horizontal(|ui| {
+                    ui.label("editing: ");
+                    ui.label(RichText::new(&self.file.name).color(Color32::GREEN));
+                });
+            }
+
+            if let Some(tex) = &self.texture {
+                puffin::profile_scope!("s_draw_img");
+                let max_size = ui.available_size() * 0.9;
+                ui.add(egui::Image::new(tex).max_size(max_size));
+            }
+
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                powered_by_egui_and_eframe(ui);
+                if ui.button("About").clicked() {
+                    self.show_about = true;
+                }
+                egui::warn_if_debug_build(ui);
+            });
+        });
+        if puffin::are_scopes_on() {
+            puffin_egui::profiler_window(ctx);
+        }
+    }
+}
+
+impl MilkApp {
+    fn window_about(&mut self, ctx: &egui::Context) {
         egui::Window::new("About")
             .open(&mut self.show_about)
             .vscroll(true)
@@ -112,8 +189,14 @@ impl eframe::App for MilkApp {
                     ui.label(RichText::new("9 Dec. 2025 -> ").color(Color32::YELLOW));
                     ui.label(RichText::new("Compression effect now 2 times faster! Random names for exported images. Code refactoring.").color(Color32::GREEN));
                 });
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("10 Dec. 2025 -> ").color(Color32::YELLOW));
+                    ui.label(RichText::new("Slightly faster Rng generator for pointillism effect").color(Color32::GREEN));
+                });
             });
+    }
 
+    fn window_config(&mut self, ctx: &egui::Context) {
         egui::Window::new("Config")
             .open(&mut self.show_config)
             .default_size(egui::vec2(200.0, 200.0))
@@ -162,72 +245,6 @@ impl eframe::App for MilkApp {
 
                 //TODO: Add other config options
             });
-
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-
-            egui::MenuBar::new().ui(ui, |ui| {
-                // NOTE: no File->Quit on web pages!
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
-                    ui.menu_button("File", |ui| {
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
-                    ui.add_space(16.0);
-                }
-
-                egui::widgets::global_theme_preference_buttons(ui);
-            });
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                ui.heading(RichText::new("Milk-Filter").color(Color32::WHITE));
-            });
-
-            load_save_file(self, ui);
-
-            ui.horizontal(|ui| {
-                let mut profile = puffin::are_scopes_on();
-                ui.checkbox(&mut profile, "Show profiler window");
-                puffin::set_scopes_on(profile); // controls both the profile capturing, and the displaying of it
-
-                ui.checkbox(&mut self.show_config, "Show Filter Options");
-            });
-
-            ui.separator();
-
-            if !self.file.exists {
-                ui.label("Load file by using \"Load\" button!");
-            } else if !self.file.valid {
-                ui.label(RichText::new("(png | jpg | jpeg) Only supported!").color(Color32::RED));
-            } else {
-                ui.horizontal(|ui| {
-                    ui.label("editing: ");
-                    ui.label(RichText::new(&self.file.name).color(Color32::GREEN));
-                });
-            }
-
-            if let Some(tex) = &self.texture {
-                puffin::profile_scope!("s_draw_img");
-                let max_size = ui.available_size() * 0.9;
-                ui.add(egui::Image::new(tex).max_size(max_size));
-            }
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                if ui.button("About").clicked() {
-                    self.show_about = true;
-                }
-                egui::warn_if_debug_build(ui);
-            });
-        });
-        if puffin::are_scopes_on() {
-            puffin_egui::profiler_window(ctx);
-        }
     }
 }
 
@@ -279,9 +296,9 @@ fn load_save_file(app: &MilkApp, ui: &mut egui::Ui) {
                 .button(RichText::new("Save").color(Color32::WHITE))
                 .clicked()
             {
-                let id: u64 = rand::random();
+                let id = crate::smix64::random();
                 let task = rfd::AsyncFileDialog::new()
-                    .set_file_name(format!("filt_{:16x}.png", id))
+                    .set_file_name(format!("filt_{id:16x}.png"))
                     .save_file();
 
                 if let Some(img) = &app.img.processed {

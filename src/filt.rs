@@ -1,5 +1,4 @@
 use image::Rgb;
-use rand::{Rng as _, SeedableRng as _, rngs::SmallRng};
 use rayon::prelude::*;
 
 pub struct MilkImage {
@@ -151,6 +150,8 @@ impl MilkImage {
             };
         }
 
+        let chance = (chance * u32::MAX as f32) as u32;
+
         if self.conf.enabled {
             puffin::profile_scope!("s_apply_filter");
 
@@ -158,19 +159,20 @@ impl MilkImage {
                 .par_chunks_mut(width * 3)
                 .enumerate()
                 .for_each(|(y, row)| {
-                    let seed = ((width * 3) + y) as u64 ^ 0x123456789abcdef0;
-                    let mut rng = SmallRng::seed_from_u64(seed);
+                    let mut state = ((width * 3) + y) as u64 ^ 0x123456789abcdef0;
 
                     for pixel in row.chunks_exact_mut(3) {
                         let sum = (pixel[0] as u16 + pixel[1] as u16 + pixel[2] as u16) as usize;
                         let action = &lut[sum];
 
+                        state = state.wrapping_add(0x9e3779b97f4a7c15);
+                        let mut z = state;
+                        z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+                        z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+                        let rand = ((z ^ (z >> 31)) >> 32) as u32;
+
                         let color = if action.do_rng {
-                            if rng.random_range(0.0..1.0) < chance {
-                                action.c1
-                            } else {
-                                action.c2
-                            }
+                            if rand < chance { action.c1 } else { action.c2 }
                         } else {
                             action.c1
                         };
