@@ -171,37 +171,63 @@ impl eframe::App for MilkApp {
     }
 }
 
+struct LogEntry {
+    date: &'static str,
+    text: &'static str,
+}
+
 impl MilkApp {
     fn window_about(&mut self, ctx: &egui::Context) {
+        use std::sync::OnceLock;
+        const CHANGELOG: &str = include_str!("../CHANGELOG.txt");
+        static PARSED_LOG: OnceLock<Vec<LogEntry>> = std::sync::OnceLock::new();
+
+        let entries = PARSED_LOG.get_or_init(|| {
+            CHANGELOG
+                .lines()
+                .filter_map(|line| line.split_once("->"))
+                .map(|(d, t)| LogEntry { date: d, text: t })
+                .collect()
+        });
+
+        let rect = ctx.content_rect();
+        let max_width = if rect.width() < 500.0 {
+            rect.width() * 0.9
+        } else {
+            500.0
+        };
+
         egui::Window::new("About")
             .open(&mut self.show_about)
             .vscroll(true)
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .collapsible(false)
+            .default_width(max_width)
+            .max_width(max_width)
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                     ui.heading(RichText::new("Changelog").color(Color32::WHITE));
                 });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("7 Dec. 2025 -> ").color(Color32::YELLOW));
-                    ui.label(RichText::new("Init").color(Color32::GREEN));
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("9 Dec. 2025 -> ").color(Color32::YELLOW));
-                    ui.label(RichText::new("Compression effect now 2 times faster! Random names for exported images. Code refactoring.").color(Color32::GREEN));
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("10 Dec. 2025 -> ").color(Color32::YELLOW));
-                    ui.label(RichText::new("Slightly faster Rng generator for pointillism effect").color(Color32::GREEN));
-                });
+                for entry in entries {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            RichText::new(format!("{}->", entry.date))
+                                .color(Color32::YELLOW)
+                                .monospace(),
+                        );
+                        ui.label(RichText::new(entry.text).color(Color32::GREEN));
+                    });
+                }
             });
     }
 
     fn window_config(&mut self, ctx: &egui::Context) {
         egui::Window::new("Config")
             .open(&mut self.show_config)
-            .default_size(egui::vec2(200.0, 200.0))
             .vscroll(true)
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .collapsible(true)
+            .default_size(egui::vec2(200.0, 200.0))
             .show(ctx, |ui| {
                 let conf = self.img.get_config();
 

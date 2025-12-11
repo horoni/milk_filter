@@ -1,0 +1,4 @@
+10 Dec. 2025 -> Slightly faster Rng generator for pointillism effect
+9  Dec. 2025 -> Compression effect now 2 times faster! Random names for exported images. Code refactoring.
+7  Dec. 2025 -> Init
+
